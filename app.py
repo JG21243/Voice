@@ -6,7 +6,9 @@ from moviepy.audio.io.AudioFileClip import AudioFileClip
 import cv2
 import base64
 import io
-import openai
+from openai import OpenAI
+
+client = OpenAI()
 import os
 import requests
 import streamlit as st
@@ -17,7 +19,15 @@ load_dotenv('.env.local')
 
 ## 1. Turn video into frames
 def video_to_frames(video_file):
-    # Save the uploaded video file to a temporary file
+    """
+    Convert a video file into a list of base64 encoded frames.
+
+    Parameters:
+    video_file (file): The video file to be converted.
+
+    Returns:
+    tuple: A tuple containing the list of base64 encoded frames, the filename of the temporary video file, and the duration of the video.
+    """
     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmpfile:
         tmpfile.write(video_file.read())
         video_filename = tmpfile.name
@@ -39,6 +49,17 @@ def video_to_frames(video_file):
 
 ## 2. Generate stories based on frames with gpt4v
 def frames_to_story(base64Frames, prompt, api_key):
+    """
+    Converts a list of base64 encoded frames into a story using OpenAI's GPT-4 Vision model.
+
+    Args:
+        base64Frames (list): A list of base64 encoded frames representing images.
+        prompt (str): The prompt for generating the story.
+        api_key (str): The API key for accessing OpenAI's services.
+
+    Returns:
+        str: The generated story.
+    """
     PROMPT_MESSAGES = [
         {
             "role": "user",
@@ -51,11 +72,9 @@ def frames_to_story(base64Frames, prompt, api_key):
     params = {
         "model": "gpt-4-vision-preview",
         "messages": PROMPT_MESSAGES,
-        "api_key": api_key,
-        "headers": {"Openai-Version": "2020-11-07"},
         "max_tokens": 500,
     }
-    result = openai.ChatCompletion.create(**params)
+    result = client.chat.completions.create(**params)
     print(result.choices[0].message.content)
     return result.choices[0].message.content
 
@@ -154,12 +173,12 @@ def main():
             audio_filename, audio_bytes_io = text_to_audio(text, openai_key, classify)
             # Merge audio and video
             output_video_filename = os.path.splitext(video_filename)[0] + "_output.mp4"
-            
+
             final_video_filename = merge_audio_video(video_filename, audio_filename, output_video_filename)
-            
+
             # Display the result
             st.video(final_video_filename)
-            
+
             # Clean up the temporary files
             os.unlink(video_filename)
             os.unlink(audio_filename)
